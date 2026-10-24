@@ -1,0 +1,26 @@
+{
+  "name": "howmuchhot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r build",
+    "dev": "vp run web#build && vp run --parallel --filter web --filter worker dev",
+    "dev:web": "vp run web#dev",
+    "dev:worker": "vp run web#build && vp run worker#dev",
+    "weather:refresh": "node scripts/refresh-weather.mjs"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.14.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
