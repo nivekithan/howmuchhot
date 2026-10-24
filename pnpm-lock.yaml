@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    flatpickr:
+      specifier: ^4.6.13
+      version: 4.6.13
     hono:
       specifier: ^4.13.13
       version: 4.13.13
@@ -193,6 +196,9 @@ importers:
       '@howmuchhot/tiles':
         specifier: workspace:*
         version: link:../../packages/tiles
+      flatpickr:
+        specifier: 'catalog:'
+        version: 4.6.13
       maplibre-gl:
         specifier: ^5.20.0
         version: 5.24.0
@@ -1463,6 +1469,9 @@ packages:
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
+  flatpickr@4.6.13:
+    resolution: {integrity: sha512-97PMG/aywoYpB4IvbvUJi0RQi8vearvU0oov1WW3k0WZPBMrTQVqekSX5CjSG/M4Q3i6A/0FKXC7RyAoAUUSPw==}
 
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
@@ -2741,6 +2750,8 @@ snapshots:
       picomatch: 4.0.7
 
   fflate@0.8.3: {}
+
+  flatpickr@4.6.13: {}
 
   flatted@3.4.4: {}
 

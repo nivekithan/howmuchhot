@@ -10,6 +10,7 @@ allowBuilds:
 
 catalog:
   "@types/node": ^24
+  flatpickr: ^4.6.13
   hono: ^4.13.13
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0

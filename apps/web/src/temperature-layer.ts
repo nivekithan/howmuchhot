@@ -49,6 +49,8 @@ export class TemperatureLayer implements CustomLayerInterface {
   private vao!: WebGLVertexArrayObject;
   private buffer!: WebGLBuffer;
   private textures = new Map<string, WebGLTexture>();
+  private pixels = new Map<string, Uint8Array>();
+  private preloaded = new Set<string>();
   private tiles: Tile[] = [];
   private fraction = 0;
   private signature = "";
@@ -154,9 +156,65 @@ export class TemperatureLayer implements CustomLayerInterface {
     const existing = this.textures.get(url);
     if (existing) gl.deleteTexture(existing);
     this.textures.set(url, texture);
+    this.pixels.set(url, bytes);
   }
 
-  async show(milliseconds: number, onBuffer?: () => void): Promise<boolean> {
+  sample(longitude: number, latitude: number): number | undefined {
+    if (this.missing || Math.abs(longitude) > 180 || Math.abs(latitude) > 85.05112878) return;
+    const x = (longitude + 180) / 360;
+    const radians = (latitude * Math.PI) / 180;
+    const y = (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2;
+    const tile = this.tiles.find(({ z, x: tx, y: ty }) => {
+      const n = 2 ** z;
+      return x * n >= tx && x * n < tx + 1 && y * n >= ty && y * n < ty + 1;
+    });
+    if (!tile) return;
+    const before = this.pixels.get(tile.before);
+    const after = this.pixels.get(tile.after);
+    if (!before || !after) return;
+    const px = Math.max(0, Math.min(255, (x * 2 ** tile.z - tile.x) * 256 - 0.5));
+    const py = Math.max(0, Math.min(255, (y * 2 ** tile.z - tile.y) * 256 - 0.5));
+    const x0 = Math.floor(px);
+    const y0 = Math.floor(py);
+    const x1 = Math.min(255, x0 + 1);
+    const y1 = Math.min(255, y0 + 1);
+    const value = (bytes: Uint8Array) => {
+      const pixel = (column: number, row: number) => {
+        const offset = (row * 256 + column) * 2;
+        return (bytes[offset]! * 256 + bytes[offset + 1]! - 32768) * 0.01;
+      };
+      const top = pixel(x0, y0) * (1 - (px - x0)) + pixel(x1, y0) * (px - x0);
+      const bottom = pixel(x0, y1) * (1 - (px - x0)) + pixel(x1, y1) * (px - x0);
+      return top * (1 - (py - y0)) + bottom * (py - y0);
+    };
+    return value(before) * (1 - this.fraction) + value(after) * this.fraction;
+  }
+
+  private async preload(urls: string[], signal: AbortSignal) {
+    const keep = new Set(urls);
+    for (const url of this.preloaded) {
+      if (!keep.has(url)) this.preloaded.delete(url);
+    }
+    try {
+      for (let i = 0; i < urls.length; i += 4) {
+        signal.throwIfAborted();
+        await Promise.all(
+          urls.slice(i, i + 4).map(async (url) => {
+            if (this.preloaded.has(url)) return;
+            const response = await fetch(url, { signal, cache: "force-cache" });
+            if (!response.ok) throw new Error(`Temperature tile unavailable (${response.status})`);
+            await response.arrayBuffer();
+            signal.throwIfAborted();
+            this.preloaded.add(url);
+          }),
+        );
+      }
+    } catch (error) {
+      if (!signal.aborted) console.warn("Tile preload failed", error);
+    }
+  }
+
+  async show(milliseconds: number): Promise<boolean> {
     const start = Date.parse(this.manifest.frames[0]!.time);
     const hour = (milliseconds - start) / 3_600_000;
     const a = Math.max(0, Math.min(this.manifest.frames.length - 1, Math.floor(hour)));
@@ -179,7 +237,6 @@ export class TemperatureLayer implements CustomLayerInterface {
     }));
     const signature = tiles.map((tile) => `${tile.before}:${tile.after}`).join("|");
     if (signature !== this.signature) {
-      onBuffer?.();
       if (this.pending?.signature === signature) {
         await this.pending.promise;
       } else {
@@ -188,6 +245,11 @@ export class TemperatureLayer implements CustomLayerInterface {
         const signal = this.controller.signal;
         const generation = ++this.generation;
         const urls = [...new Set(tiles.flatMap((tile) => [tile.before, tile.after]))];
+        const preloadUrls: string[] = [];
+        for (let ahead = b + 1; ahead <= a + 24 && ahead < this.manifest.frames.length; ahead++) {
+          if (!this.manifest.frames[ahead]!.missing)
+            preloadUrls.push(...tiles.map((tile) => this.url(ahead, tile)));
+        }
         const promise = (async () => {
           try {
             // Bounded network/decompression concurrency even when the entire world is visible.
@@ -202,8 +264,10 @@ export class TemperatureLayer implements CustomLayerInterface {
               if (!keep.has(url)) {
                 this.gl.deleteTexture(texture);
                 this.textures.delete(url);
+                this.pixels.delete(url);
               }
             }
+            void this.preload(preloadUrls, signal);
             return true;
           } catch (error) {
             if (signal.aborted) return false;
@@ -252,6 +316,7 @@ export class TemperatureLayer implements CustomLayerInterface {
   onRemove() {
     this.controller.abort();
     for (const texture of this.textures.values()) this.gl.deleteTexture(texture);
+    this.pixels.clear();
     this.gl.deleteBuffer(this.buffer);
     this.gl.deleteVertexArray(this.vao);
     this.gl.deleteProgram(this.program);

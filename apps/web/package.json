@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@howmuchhot/tiles": "workspace:*",
+    "flatpickr": "catalog:",
     "maplibre-gl": "^5.20.0"
   },
   "devDependencies": {
