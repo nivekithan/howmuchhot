@@ -1,12 +1,13 @@
 // Normalized difference, then RGB. Keep the shader and legend on the same scale.
+// Dark at zero so near-normal areas recede; lightness rises steadily towards both extremes.
 const stops = [
-  [-1, 94, 60, 153],
-  [-0.5, 50, 136, 189],
-  [-0.2, 135, 216, 223],
-  [0, 246, 243, 223],
-  [0.2, 254, 224, 139],
-  [0.5, 244, 109, 67],
-  [1, 165, 0, 38],
+  [-1, 36, 84, 122],
+  [-0.5, 86, 148, 170],
+  [-0.2, 170, 206, 206],
+  [0, 238, 233, 220],
+  [0.2, 234, 206, 160],
+  [0.5, 210, 140, 90],
+  [1, 150, 64, 46],
 ] as const;
 
 export const temperatureGradient = `linear-gradient(90deg, ${stops

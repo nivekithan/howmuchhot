@@ -19,6 +19,8 @@ const forwardIcon = icon('<path d="m13 6 6 6-6 6M5 6l6 6-6 6"/>');
 const calendarIcon = icon(
   '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
 );
+const githubIcon =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>';
 const HOUR = 3_600_000;
 const speeds = [
   { value: 1, label: "1×", title: "Real time" },
@@ -31,40 +33,42 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <div class="map-shade" aria-hidden="true"></div>
   <header class="card">
     <a class="brand" href="/">howmuch<span>hot</span><i>°</i></a>
-    <h1 id="subtitle">How much warmer or cooler is it than last year?</h1>
+    <h1 id="subtitle">How much warmer or cooler than usual</h1>
+    <div class="legend">
+      <div class="legend-labels" aria-hidden="true"><span>Cooler</span><span>Warmer</span></div>
+      <div class="gradient" role="img" aria-label="Temperature difference: blue is cooler, cream is about normal, orange and red are warmer."></div>
+      <div id="legend-ticks" class="legend-ticks" aria-hidden="true"></div>
+    </div>
+    <div class="credit">
+      <p>Weather data from <a href="https://dynamical.org/" target="_blank" rel="noopener">dynamical.org</a></p>
+      <p>
+        Made by <a href="https://nivekithan.com" target="_blank" rel="noopener">Nivekithan</a>
+        <a class="github" href="https://github.com/nivekithan" target="_blank" rel="noopener" aria-label="Nivekithan on GitHub" title="GitHub">${githubIcon}</a>
+      </p>
+    </div>
   </header>
   <div class="loading" aria-hidden="true"><span class="spinner"></span>Loading temperature data…</div>
   <div class="bottom-panel">
     <div id="error" role="alert" hidden><span id="error-message"></span><button id="retry" type="button">Reload map</button></div>
     <section class="controls card" aria-label="Animation controls" aria-busy="true">
-      <div class="time-row">
-        <button id="date-button" class="date-button" type="button" aria-label="Choose date and time" disabled>
-          <span class="date-icon">${calendarIcon}</span>
-          <span class="date-text"><strong id="day">—</strong><span id="clock">—</span></span>
-        </button>
-        <input id="date" class="sr-only" type="text" tabindex="-1" aria-hidden="true" disabled>
-        <time id="time" class="sr-only">—</time>
-        <div class="speed" role="radiogroup" aria-label="Playback speed">
-          ${speeds.map(({ value, label, title }) => `<button type="button" role="radio" data-speed="${value}" title="${title}" aria-label="${title}" aria-checked="${value === 3600}">${label}</button>`).join("")}
-        </div>
-      </div>
-      <div class="play-row">
+      <div class="playback">
         <button id="back" class="step" type="button" aria-label="Previous hour" title="Previous hour (←)" disabled>${backIcon}</button>
         <button id="play" type="button" aria-label="Play animation" title="Play (Space)" aria-pressed="false" disabled>${playIcon}</button>
         <button id="forward" class="step" type="button" aria-label="Next hour" title="Next hour (→)" disabled>${forwardIcon}</button>
-        <div class="scrubber">
-          <label class="sr-only" for="timeline">Time in the temperature archive</label>
-          <input id="timeline" type="range" min="0" max="1" step="1" value="0" disabled>
-          <div id="ticks" class="ticks" aria-hidden="true"></div>
-        </div>
       </div>
-      <div class="legend">
-        <span class="legend-label">Cooler</span>
-        <div class="legend-scale">
-          <div class="gradient" role="img" aria-label="Temperature difference: purple and blue are cooler, cream is zero, yellow and red are warmer."></div>
-          <div id="legend-ticks" class="legend-ticks" aria-hidden="true"></div>
-        </div>
-        <span class="legend-label">Warmer</span>
+      <button id="date-button" class="date-button" type="button" aria-label="Choose date and time" disabled>
+        <span class="date-icon">${calendarIcon}</span>
+        <span class="date-text"><strong id="day">—</strong><span id="clock">—</span></span>
+      </button>
+      <input id="date" class="sr-only" type="text" tabindex="-1" aria-hidden="true" disabled>
+      <time id="time" class="sr-only">—</time>
+      <div class="scrubber">
+        <label class="sr-only" for="timeline">Time in the temperature archive</label>
+        <input id="timeline" type="range" min="0" max="1" step="1" value="0" disabled>
+        <div id="ticks" class="ticks" aria-hidden="true"></div>
+      </div>
+      <div class="speed" role="radiogroup" aria-label="Playback speed">
+        ${speeds.map(({ value, label, title }) => `<button type="button" role="radio" data-speed="${value}" title="${title}" aria-label="${title}" aria-checked="${value === 1}">${label}</button>`).join("")}
       </div>
       <div id="status" class="sr-only" role="status"></div>
     </section>
@@ -82,7 +86,7 @@ const dateButton = el<HTMLButtonElement>("date-button");
 const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".speed button")];
 const controls = document.querySelector<HTMLElement>(".controls")!;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-let rate = 3600;
+let rate = 1;
 document.querySelector<HTMLElement>(".gradient")!.style.background = temperatureGradient;
 el("retry").addEventListener("click", () => location.reload());
 
@@ -99,10 +103,6 @@ function render(manifest: Manifest) {
   const maximum = Date.parse(manifest.latestTime);
   if (maximum < minimum) throw new Error("No data is available for this time yet.");
   const [low, high] = manifest.colorRange;
-  const years = manifest.referenceWindowYears;
-  const reference =
-    years === 1 ? "the same hour last year" : `the same hour over the previous ${years} years`;
-  el("subtitle").textContent = `Air temperature vs. ${reference}`;
 
   const map = new maplibregl.Map({
     container: "map",
@@ -111,6 +111,12 @@ function render(manifest: Manifest) {
     minZoom: 0,
     maxZoom: 7,
     renderWorldCopies: false,
+    // Mercator balloons near the poles; stop panning before Antarctica and the high Arctic.
+    // Kept just inside ±180°: bounds on the antimeridian itself crash MapLibre's camera maths.
+    maxBounds: [
+      [-179.9, -58],
+      [179.9, 84],
+    ],
     dragRotate: false,
     pitchWithRotate: false,
     touchPitch: false,
@@ -182,10 +188,15 @@ function render(manifest: Manifest) {
     day: "numeric",
     year: "numeric",
   });
-  const clockFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+  const clockFormat = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
   const hour12 = clockFormat.resolvedOptions().hour12 ?? false;
   const tickFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-  let current = minimum;
+  // Open a day behind now and play forward in real time.
+  let current = Math.max(minimum, Math.min(maximum, Date.now() - 24 * HOUR));
   let playing = false;
   let ready = false;
   let revision = 0;
@@ -214,7 +225,6 @@ function render(manifest: Manifest) {
     time.dateTime = new Date(current).toISOString();
     el("day").textContent = dayFormat.format(current);
     el("clock").textContent = clockFormat.format(current);
-    el("clock").classList.toggle("is-latest", current >= maximum);
     timeline.value = String(second);
     timeline.style.setProperty(
       "--progress",
@@ -317,20 +327,59 @@ function render(manifest: Manifest) {
   });
   dateButton.addEventListener("click", () => picker.toggle());
 
-  // Label each day boundary, thinning them out so long archives stay legible.
-  const days: number[] = [];
-  const midnight = new Date(minimum);
-  midnight.setHours(24, 0, 0, 0);
-  for (; midnight.getTime() <= maximum; midnight.setDate(midnight.getDate() + 1))
-    days.push(midnight.getTime());
-  const every = Math.max(1, Math.ceil(days.length / 6));
-  el("ticks").innerHTML = days
-    .map((day, index) => {
-      const position = ((day - minimum) / (maximum - minimum)) * 100;
-      const label = index % every === 0 && position > 6 && position < 94;
-      return `<span class="tick${label ? "" : " minor"}" style="left:${position}%">${label ? tickFormat.format(day) : ""}</span>`;
-    })
-    .join("");
+  // Pick a calendar unit that suits the archive length so ticks stay sparse.
+  const DAY = 86_400_000;
+  const span = maximum - minimum;
+  const unit =
+    span <= 14 * DAY
+      ? "day"
+      : span <= 120 * DAY
+        ? "week"
+        : span <= 3 * 365 * DAY
+          ? "month"
+          : "year";
+  const boundary = new Date(minimum);
+  boundary.setHours(0, 0, 0, 0);
+  if (unit === "month") boundary.setDate(1);
+  if (unit === "year") boundary.setMonth(0, 1);
+  const advance = () => {
+    if (unit === "day") boundary.setDate(boundary.getDate() + 1);
+    else if (unit === "week") boundary.setDate(boundary.getDate() + 7);
+    else if (unit === "month") boundary.setMonth(boundary.getMonth() + 1);
+    else boundary.setFullYear(boundary.getFullYear() + 1);
+  };
+  if (unit === "week") boundary.setDate(boundary.getDate() + ((8 - boundary.getDay()) % 7)); // Mondays
+  if (boundary.getTime() <= minimum) advance();
+  const marks: number[] = [];
+  for (; boundary.getTime() <= maximum; advance()) marks.push(boundary.getTime());
+  const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short" });
+  const label = (time: number) => {
+    const value = new Date(time);
+    if (unit === "year" || (unit === "month" && value.getMonth() === 0))
+      return String(value.getFullYear());
+    return unit === "month" ? monthFormat.format(time) : tickFormat.format(time);
+  };
+  // Label on calendar-friendly steps (e.g. quarterly months), as many as the track fits.
+  const steps = { day: [1, 2, 7], week: [1, 2, 4], month: [1, 2, 3, 6], year: [1, 2, 5, 10] }[unit];
+  const positionOf = (time: number) => ((time - minimum) / span) * 100;
+  const labelled = (step: number) =>
+    marks.filter((time, index) => {
+      const slot = unit === "month" ? new Date(time).getMonth() : index;
+      return slot % step === 0 && positionOf(time) > 4 && positionOf(time) < 96;
+    });
+  const renderTicks = () => {
+    const room = Math.max(3, Math.floor(timeline.clientWidth / 56));
+    const every = steps.find((step) => labelled(step).length <= room) ?? steps[steps.length - 1]!;
+    const shown = new Set(labelled(every));
+    el("ticks").innerHTML = marks
+      .map((time) => {
+        const text = shown.has(time) ? label(time) : "";
+        return `<span class="tick${text ? "" : " minor"}" style="left:${positionOf(time)}%">${text}</span>`;
+      })
+      .join("");
+  };
+  renderTicks();
+  new ResizeObserver(renderTicks).observe(timeline);
 
   const format = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value)}°`;
   el("legend-ticks").innerHTML = [low, low / 2, 0, high / 2, high]
@@ -374,6 +423,14 @@ function render(manifest: Manifest) {
     updatePlay();
     setStatus("Paused · motion preference changed");
   });
+  // Start fetching newly revealed tiles mid-pan instead of waiting for the gesture to end.
+  let moveTimer: number | undefined;
+  map.on("move", () => {
+    moveTimer ??= window.setTimeout(() => {
+      moveTimer = undefined;
+      void draw(current);
+    }, 200);
+  });
   map.on("moveend", () => {
     revision++;
     void draw(current);
@@ -386,24 +443,19 @@ function render(manifest: Manifest) {
       data: "/countries.geojson",
       attribution: '<a href="https://www.naturalearthdata.com/">Natural Earth</a> · public domain',
     });
-    map.addLayer({
-      id: "reference-halo",
-      type: "line",
-      source: "reference",
-      paint: {
-        "line-color": "#fff9eb",
-        "line-opacity": 0.35,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.6, 3, 2.4, 7, 3.5],
-      },
-    });
+    // Light land under a translucent temperature layer, so countries stand apart from the dark sea.
+    map.addLayer(
+      { id: "land", type: "fill", source: "reference", paint: { "fill-color": "#f4f1ea" } },
+      "temperature",
+    );
     map.addLayer({
       id: "reference",
       type: "line",
       source: "reference",
       paint: {
-        "line-color": "#13202a",
-        "line-opacity": 0.8,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 3, 1, 7, 1.6],
+        "line-color": "#1a2630",
+        "line-opacity": 0.7,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 3, 0.9, 7, 1.5],
       },
     });
     document.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
@@ -415,7 +467,9 @@ function render(manifest: Manifest) {
     back.disabled = current <= minimum;
     forward.disabled = current >= maximum;
     app.classList.add("is-ready");
-    void draw(current);
+    void draw(current).then(() => {
+      if (!reducedMotion.matches && !playing && current < maximum) togglePlay();
+    });
   });
 }
 

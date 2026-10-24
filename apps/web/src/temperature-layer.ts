@@ -32,7 +32,8 @@ float temperature(highp sampler2D image) {
 void main() {
   float value = mix(temperature(before), temperature(after), fraction);
   vec3 fill = temperatureColor(value / (value < 0. ? -range.x : range.y));
-  color = vec4(fill, 1.);
+  // Slightly translucent so the land and sea underneath stay distinguishable (premultiplied).
+  color = vec4(fill * .85, .85);
 }`;
 
 type Tile = { z: number; x: number; y: number; before: string; after: string };
@@ -98,7 +99,8 @@ export class TemperatureLayer implements CustomLayerInterface {
     gl.bindVertexArray(null);
   }
 
-  private visible() {
+  /** Tiles in view, optionally padded by a ring so panning reveals already-loaded data. */
+  private visible(margin = 0) {
     const z = Math.min(3, Math.max(0, Math.floor(this.map.getZoom())));
     const n = 2 ** z;
     const bounds = this.map.getBounds();
@@ -109,11 +111,15 @@ export class TemperatureLayer implements CustomLayerInterface {
     const clamp = (v: number) => Math.max(0, Math.min(n - 1, Math.floor(v)));
     const tiles: { z: number; x: number; y: number }[] = [];
     for (
-      let x = clamp(((bounds.getWest() + 180) / 360) * n);
-      x <= clamp(((bounds.getEast() + 180) / 360) * n);
+      let x = clamp(((bounds.getWest() + 180) / 360) * n - margin);
+      x <= clamp(((bounds.getEast() + 180) / 360) * n + margin);
       x++
     )
-      for (let y = clamp(row(bounds.getNorth())); y <= clamp(row(bounds.getSouth())); y++)
+      for (
+        let y = clamp(row(bounds.getNorth()) - margin);
+        y <= clamp(row(bounds.getSouth()) + margin);
+        y++
+      )
         tiles.push({ z, x, y });
     return tiles;
   }
@@ -230,7 +236,7 @@ export class TemperatureLayer implements CustomLayerInterface {
       this.map.triggerRepaint();
       return true;
     }
-    const tiles = this.visible().map((tile) => ({
+    const tiles = this.visible(1).map((tile) => ({
       ...tile,
       before: this.url(a, tile),
       after: this.url(b, tile),
@@ -245,10 +251,12 @@ export class TemperatureLayer implements CustomLayerInterface {
         const signal = this.controller.signal;
         const generation = ++this.generation;
         const urls = [...new Set(tiles.flatMap((tile) => [tile.before, tile.after]))];
+        // Look ahead in time only for tiles actually in view; the padding ring is for panning.
+        const inView = this.visible();
         const preloadUrls: string[] = [];
         for (let ahead = b + 1; ahead <= a + 24 && ahead < this.manifest.frames.length; ahead++) {
           if (!this.manifest.frames[ahead]!.missing)
-            preloadUrls.push(...tiles.map((tile) => this.url(ahead, tile)));
+            preloadUrls.push(...inView.map((tile) => this.url(ahead, tile)));
         }
         const promise = (async () => {
           try {
@@ -290,7 +298,8 @@ export class TemperatureLayer implements CustomLayerInterface {
     gl.bindVertexArray(this.vao);
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
-    gl.disable(gl.BLEND);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.disable(gl.STENCIL_TEST);
     gl.uniformMatrix4fv(
       gl.getUniformLocation(this.program, "matrix"),
