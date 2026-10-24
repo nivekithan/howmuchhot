@@ -31,3 +31,17 @@ ${stops
   .join("\n")}
   return ${rgb(stops[stops.length - 1]!)};
 }`;
+
+/** CSS colour for a normalized difference, matching the shader. */
+export function temperatureCss(value: number) {
+  const clamped = Math.max(-1, Math.min(1, value));
+  const index = Math.max(
+    1,
+    stops.findIndex(([stop]) => clamped <= stop),
+  );
+  const [from, r0, g0, b0] = stops[index - 1]!;
+  const [to, r1, g1, b1] = stops[index]!;
+  const t = (clamped - from) / (to - from);
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
+  return `rgb(${mix(r0, r1)} ${mix(g0, g1)} ${mix(b0, b1)})`;
+}
