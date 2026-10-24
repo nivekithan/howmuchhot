@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { cache } from "hono/cache";
-import { parseManifest, tileKey, type Manifest } from "@howmuchhot/tiles";
+import { tileKey, type Manifest } from "@howmuchhot/tiles";
 import type { RefreshParams } from "./refresh.ts";
+import type { TemperatureProcessor } from "./index.ts";
 
 export interface Env {
   TILES: R2Bucket;
-  PROCESSOR?: DurableObjectNamespace;
-  WEATHER_REFRESH?: Workflow<RefreshParams>;
+  PROCESSOR: DurableObjectNamespace<TemperatureProcessor>;
+  WEATHER_REFRESH: Workflow<RefreshParams>;
 }
 
 export const app = new Hono<{ Bindings: Env }>();
@@ -33,12 +34,8 @@ app.get(
         },
         404,
       );
-    try {
-      const manifest = parseManifest(await object.json<Manifest>());
-      return c.json(manifest, 200, { "Cache-Control": MANIFEST_CACHE_CONTROL });
-    } catch {
-      return c.json({ error: "Stored manifest is invalid" }, 502);
-    }
+    const manifest = await object.json<Manifest>();
+    return c.json(manifest, 200, { "Cache-Control": MANIFEST_CACHE_CONTROL });
   },
 );
 
@@ -51,12 +48,7 @@ app.get(
   }),
   async (c) => {
     const { dataset, frame, z, x, file } = c.req.param();
-    let key: string;
-    try {
-      key = tileKey(dataset, frame, Number(z), Number(x), Number(file.slice(0, -4)));
-    } catch {
-      return c.json({ error: "Invalid tile coordinates" }, 400);
-    }
+    const key = tileKey(dataset, frame, Number(z), Number(x), Number(file.slice(0, -4)));
     const object = await c.env.TILES.get(key);
     if (!object) return c.json({ error: "Tile not found" }, 404);
     return c.body(object.body, 200, {

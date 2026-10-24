@@ -1,7 +1,7 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./style.css";
-import { parseManifest, type Manifest } from "@howmuchhot/tiles";
+import type { Manifest } from "@howmuchhot/tiles";
 import { TemperatureLayer } from "./temperature-layer.ts";
 import { temperatureGradient } from "./colors.ts";
 
@@ -142,8 +142,9 @@ function render(manifest: Manifest) {
       manifest.referenceWindowYears === 1
         ? String(year - 1)
         : `${year - manifest.referenceWindowYears}–${year - 1}`;
-    el("reference").textContent =
-      `${reference} reference · ${frame.referenceYears} available ${frame.referenceYears === 1 ? "year" : "years"}${frame.referenceYears < manifest.referenceWindowYears ? " (partial history)" : ""}`;
+    el("reference").textContent = frame.missing
+      ? `${reference} reference · ${frame.missing === "source" ? "source snapshot unavailable" : "no historical reference available"}`
+      : `${reference} reference · ${frame.referenceYears} available ${frame.referenceYears === 1 ? "year" : "years"}${frame.referenceYears < manifest.referenceWindowYears ? " (partial history)" : ""}`;
   };
   const fail = (error: unknown) => {
     playing = false;
@@ -164,9 +165,11 @@ function render(manifest: Manifest) {
         current = value;
         updateTime();
         setStatus(
-          playing
-            ? `Playing · ${speed.selectedOptions[0]!.textContent}`
-            : "Paused · choose a time or press play",
+          layer.missing
+            ? "Missing snapshot · no interpolation across this gap"
+            : playing
+              ? `Playing · ${speed.selectedOptions[0]!.textContent}`
+              : "Paused · choose a time or press play",
         );
       }
     } catch (error) {
@@ -220,7 +223,7 @@ function render(manifest: Manifest) {
     previous = performance.now();
     updatePlay();
     if (playing) wake();
-    else setStatus("Paused");
+    else setStatus(layer.missing ? "Paused · missing snapshot; no interpolation" : "Paused");
   });
   timeline.addEventListener("input", () => seek(Number(timeline.value) * 1000));
   date.addEventListener("change", () => seek(new Date(date.value).getTime()));
@@ -280,7 +283,7 @@ async function start() {
     throw new Error(
       "No hourly anomaly archive has been published yet. The first refresh archives source history before generating tiles; reload after the backfill has progressed.",
     );
-  render(parseManifest(await response.json()));
+  render((await response.json()) as Manifest);
 }
 start().catch((error: unknown) => {
   console.error(error);

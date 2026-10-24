@@ -25,17 +25,12 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"error": "Not found"}, 404)
             return
         try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= 4096:
-                raise ValueError("Expected a small JSON request")
+            size = int(self.headers["Content-Length"])
             body = json.loads(self.rfile.read(size))
             self.respond(refresh(body.get("cutoff"), body.get("window")))
-        except (ValueError, TypeError) as error:
-            traceback.print_exc()
-            self.respond({"error": str(error)}, 400)
         except Exception as error:
             traceback.print_exc()
-            self.respond({"error": "Real weather refresh failed", "detail": f"{type(error).__name__}: {error}"[:600]}, 502)
+            self.respond({"error": f"{type(error).__name__}: {error}"}, 502)
 
     def do_GET(self):
         if urlparse(self.path).path == "/health":

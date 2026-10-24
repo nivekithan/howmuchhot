@@ -5,18 +5,37 @@ import type { Env } from "./router.ts";
 
 const storage = new Hono<{ Bindings: Env }>();
 
+storage.get("/source/*", async (c) => {
+  const cacheKey = new Request(new URL(`/__processor-cache${c.req.path}`, c.req.url));
+  const sourceCache = await caches.open("processor-sources");
+  const cached = await sourceCache.match(cacheKey);
+  if (cached) return cached;
+  const object = await c.env.TILES.get(c.req.path.slice(1));
+  if (!object) return c.notFound();
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "public, max-age=86400, immutable");
+  const response = new Response(object.body, { headers });
+  try {
+    await sourceCache.put(cacheKey, response.clone());
+  } catch (error) {
+    console.warn("Source cache write failed; serving R2 object", String(error));
+  }
+  return response;
+});
+
 storage.get("/*", async (c) => {
   const object = await c.env.TILES.get(c.req.path.slice(1));
   if (!object) return c.notFound();
-  return c.body(object.body, 200, {
-    "Content-Type": object.httpMetadata?.contentType ?? "application/json",
-  });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  return new Response(object.body, { headers });
 });
 
 storage.put("/datasets/*", async (c) => {
   await c.env.TILES.put(c.req.path.slice(1), await c.req.arrayBuffer(), {
     onlyIf: { etagDoesNotMatch: "*" },
-    httpMetadata: { contentType: c.req.header("Content-Type") ?? "application/octet-stream" },
+    httpMetadata: { contentType: c.req.header("Content-Type") },
   });
   return c.body(null, 204);
 });
@@ -24,7 +43,7 @@ storage.put("/datasets/*", async (c) => {
 storage.put("/source/*", async (c) => {
   await c.env.TILES.put(c.req.path.slice(1), await c.req.arrayBuffer(), {
     onlyIf: { etagDoesNotMatch: "*" },
-    httpMetadata: { contentType: c.req.header("Content-Type") ?? "application/octet-stream" },
+    httpMetadata: { contentType: c.req.header("Content-Type") },
   });
   return c.body(null, 204);
 });
@@ -71,7 +90,10 @@ storage.post("/publish", async (c) => {
     status: "complete",
     dataset: manifest.dataset,
     latestTime: manifest.latestTime,
-    tiles: (manifest.frames.length * (4 ** (manifest.maxZoom + 1) - 1)) / 3,
+    tiles:
+      (manifest.frames.filter((frame) => !frame.missing).length *
+        (4 ** (manifest.maxZoom + 1) - 1)) /
+      3,
   });
 });
 

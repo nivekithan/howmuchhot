@@ -15,6 +15,10 @@ ARCHIVE_START = np.datetime64("2025-12-31T10:00:00", "s")  # Jan 1 in UTC+14.
 DATASET = "anomaly-v1"
 
 
+class MissingHour(ValueError):
+    """No temperature chunk exists in the published Dynamical snapshot."""
+
+
 def timestamp(value):
     return np.datetime_as_string(np.datetime64(value, "s"), unit="s") + "Z"
 
@@ -63,11 +67,11 @@ class Source:
     def read(self, stamp):
         index = int(np.searchsorted(self.times, stamp))
         if index == len(self.times) or self.times[index] != stamp:
-            raise ValueError(f"Unavailable Dynamical hour: {timestamp(stamp)}")
+            raise MissingHour(f"Unavailable Dynamical hour: {timestamp(stamp)}")
         key = "temperature_2m/" + self.temperature.metadata.encode_chunk_key((index, 0, 0))
         buffer = sync(self.store.get(key, default_buffer_prototype()))
         if buffer is None:
-            raise ValueError(f"Undelivered Dynamical hour: {timestamp(stamp)}")
+            raise MissingHour(f"Undelivered Dynamical hour: {timestamp(stamp)}")
         data = buffer.to_bytes()
         if not data.startswith(b"GRIB") or not data.endswith(b"7777"):
             raise ValueError("Incomplete Dynamical GRIB chunk")

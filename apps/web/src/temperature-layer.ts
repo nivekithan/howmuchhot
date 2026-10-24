@@ -42,6 +42,7 @@ export class TemperatureLayer implements CustomLayerInterface {
   id = "temperature";
   type = "custom" as const;
   renderingMode = "2d" as const;
+  missing = false;
   private map!: MapLibreMap;
   private gl!: WebGL2RenderingContext;
   private program!: WebGLProgram;
@@ -159,7 +160,18 @@ export class TemperatureLayer implements CustomLayerInterface {
     const start = Date.parse(this.manifest.frames[0]!.time);
     const hour = (milliseconds - start) / 3_600_000;
     const a = Math.max(0, Math.min(this.manifest.frames.length - 1, Math.floor(hour)));
-    const b = Math.min(a + 1, this.manifest.frames.length - 1);
+    let b = Math.min(a + 1, this.manifest.frames.length - 1);
+    if (hour === a && this.manifest.frames[b]!.missing) b = a;
+    this.missing = !!(this.manifest.frames[a]!.missing || this.manifest.frames[b]!.missing);
+    if (this.missing) {
+      this.controller.abort();
+      this.generation++;
+      this.pending = undefined;
+      this.tiles = [];
+      this.signature = "";
+      this.map.triggerRepaint();
+      return true;
+    }
     const tiles = this.visible().map((tile) => ({
       ...tile,
       before: this.url(a, tile),
