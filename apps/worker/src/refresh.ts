@@ -4,6 +4,7 @@ import type { Env } from "./router.ts";
 export const REFRESH_CRON = "0 */8 * * *";
 export interface RefreshParams {
   trigger: string;
+  window?: { start: string; end: string; referenceYears?: number };
 }
 
 export async function enqueueRefresh(env: Env, trigger: string, scheduledTime = Date.now()) {
@@ -27,37 +28,40 @@ export async function enqueueRefresh(env: Env, trigger: string, scheduledTime = 
 /** Workflows owns retries; Python owns the entire processing/upload job. */
 export class WeatherRefresh extends WorkflowEntrypoint<Env, RefreshParams> {
   async run(event: WorkflowEvent<RefreshParams>, step: WorkflowStep) {
-    return step.do(
-      "process and publish real weather",
-      {
-        retries: { limit: 3, delay: "10 seconds", backoff: "exponential" },
-        timeout: "10 minutes",
-      },
-      async () => {
-        if (!this.env.PROCESSOR) throw new Error("Python container binding is missing");
-        const response = await this.env.PROCESSOR.getByName("weather").fetch(
-          "http://processor/refresh",
+    let cutoff: string | undefined;
+    for (let batch = 0; ; batch++) {
+      const result: { status: string; cutoff: string; detail?: string; error?: string } =
+        await step.do(
+          `archive batch ${batch}`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dataset: event.instanceId }),
+            retries: { limit: 3, delay: "10 seconds", backoff: "exponential" },
+            timeout: "10 minutes",
+          },
+          async () => {
+            if (!this.env.PROCESSOR) throw new Error("Python container binding is missing");
+            const response = await this.env.PROCESSOR.getByName("weather", {
+              locationHint: "enam",
+            }).fetch("http://processor/refresh", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cutoff, window: event.payload.window }),
+            });
+            const result = await response.json<{
+              status: string;
+              cutoff: string;
+              detail?: string;
+              error?: string;
+            }>();
+            if (!response.ok || !["complete", "continue"].includes(result.status)) {
+              throw new Error(
+                result.detail || result.error || `Container refresh failed (${response.status})`,
+              );
+            }
+            return result;
           },
         );
-        const result = await response.json<{
-          status?: string;
-          error?: string;
-          detail?: string;
-          dataset?: string;
-          latestTime?: string;
-          tiles?: number;
-        }>();
-        if (!response.ok || !["complete", "superseded"].includes(result.status ?? "")) {
-          throw new Error(
-            result.detail || result.error || `Container refresh failed (${response.status})`,
-          );
-        }
-        return result;
-      },
-    );
+      if (result.status === "complete") return result;
+      cutoff = result.cutoff;
+    }
   }
 }

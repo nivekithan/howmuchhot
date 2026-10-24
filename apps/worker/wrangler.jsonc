@@ -17,16 +17,13 @@
       "image": "../processor/Dockerfile",
       "max_instances": 1,
       "instance_type": "basic",
+      "constraints": { "regions": ["ENAM"] },
     },
   ],
   "durable_objects": {
     "bindings": [{ "name": "PROCESSOR", "class_name": "TemperatureProcessor" }],
   },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["TemperatureProcessor"] },
-    { "tag": "v2", "new_sqlite_classes": ["RefreshCoordinator"] },
-    { "tag": "v3", "deleted_classes": ["RefreshCoordinator"] },
-  ],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TemperatureProcessor"] }],
   "workflows": [
     {
       "name": "howmuchhot-weather-refresh",

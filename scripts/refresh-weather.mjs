@@ -8,7 +8,7 @@ try {
   if (!response.ok || JSON.parse(body).outcome !== "ok")
     throw new Error(`Scheduled trigger failed: ${body}`);
   console.log(
-    "Weather refresh queued. The Workflow will process and publish tiles in the background.",
+    "Weather refresh queued. The first run archives temperature history before generating hourly anomaly tiles; subsequent runs process only missing hours.",
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

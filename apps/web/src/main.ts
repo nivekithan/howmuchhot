@@ -1,63 +1,63 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./style.css";
-import { parseManifest, tileTemplate, type Manifest } from "@howmuchhot/tiles";
+import { parseManifest, type Manifest } from "@howmuchhot/tiles";
+import { TemperatureLayer } from "./temperature-layer.ts";
+import { temperatureGradient } from "./colors.ts";
 
 const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7z"/></svg>';
 const pauseIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>';
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
-  <div id="map" aria-label="Animated temperature map"></div>
+  <div id="map" aria-label="Temperature difference from previous years"></div>
   <div class="map-shade" aria-hidden="true"></div>
   <header><a class="brand" href="/">howmuch<span>hot</span><i>°</i></a><span class="eyebrow">A WORLD IN MOTION</span></header>
-  <aside class="dataset"><span class="dot"></span><span id="source">Loading temperature tiles…</span></aside>
-  <section class="intro"><div class="tag">2-METER AIR TEMPERATURE</div><h1>Feel the bigger picture.</h1><p>Explore temperature across the planet, one moment at a time.</p></section>
+  <aside class="dataset"><span class="dot"></span><span id="source">Loading temperature archive…</span></aside>
+  <section class="intro"><div class="tag">WARMER OR COOLER THAN RECENT YEARS?</div><h1>Feel the bigger picture.</h1><p id="comparison">Temperature differences against previous years, at the same UTC day and hour.</p></section>
   <div class="bottom-panel">
     <div id="error" role="alert" hidden><span id="error-message"></span><button id="retry" type="button">Reload map</button></div>
     <section class="controls" aria-label="Animation controls" aria-busy="true">
-      <div class="time-row"><span class="tag">TEMPERATURE TIMELINE <span id="mode"></span></span><time id="time">—</time></div>
-      <div class="play-row"><button id="play" type="button" aria-label="Play animation" aria-pressed="false" disabled>${playIcon}</button><div class="scrubber"><label class="sr-only" for="timeline">Weather snapshot</label><input id="timeline" type="range" min="0" max="1" step="1" value="0" disabled><div class="ticks"><span id="start">—</span><span id="cadence">Snapshot interpolation</span><span id="end">—</span></div></div></div>
-      <div class="legend"><span>°C</span><span id="minimum">−40</span><div class="gradient"></div><span id="maximum">45</span><span class="resolution" id="resolution">XYZ · Web Mercator</span></div>
-      <div class="playback-state"><span id="status" role="status">Loading dataset…</span><span>Visual crossfade, not per-second weather data</span></div>
+      <div class="time-row"><span class="tag">TEMPERATURE DIFFERENCE</span><time id="time">—</time></div>
+      <div class="play-row"><button id="play" type="button" aria-label="Play animation" aria-pressed="false" disabled>${playIcon}</button><div class="scrubber"><label class="sr-only" for="timeline">Time in the temperature archive</label><input id="timeline" type="range" min="0" max="1" step="1" value="0" disabled><div class="ticks"><span id="start">—</span><span id="cadence">Hourly data · per-second interpolation</span><span id="end">—</span></div></div></div>
+      <div class="time-options"><label>Local time <input id="date" type="datetime-local" step="1" disabled></label><label>Playback <select id="speed"><option value="1">1 second / second (1×)</option><option value="60">1 minute / second (60×)</option><option value="3600">1 hour / second (3,600×)</option></select></label></div>
+      <div class="legend"><span>Δ°C</span><span id="minimum">−10</span><div class="gradient" role="img" aria-label="Purple, blue and cyan are cooler; cream is zero; yellow, orange and red are warmer."></div><span id="maximum">+10</span><span class="resolution">0.25° source · zoom 0–3</span></div>
+      <div class="playback-state"><span id="status" role="status">Loading archive…</span><span>Interpolated estimates, not per-second measurements</span></div>
+      <div class="reference-note" id="reference">Rolling five-year reference</div>
     </section>
-    <footer>Zoom to explore · drag to travel <span>Temperature snapshots, animated in your browser</span></footer>
+    <footer>Purple / blue = cooler · yellow / orange / red = warmer <span>Hourly analyses · interpolated estimates</span></footer>
   </div>
 `;
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const play = el<HTMLButtonElement>("play");
 const timeline = el<HTMLInputElement>("timeline");
+const date = el<HTMLInputElement>("date");
+const speed = el<HTMLSelectElement>("speed");
 const controls = document.querySelector<HTMLElement>(".controls")!;
-document.querySelector<HTMLAnchorElement>(".brand")!.href = location.pathname + location.search;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+document.querySelector<HTMLElement>(".gradient")!.style.background = temperatureGradient;
 el("retry").addEventListener("click", () => location.reload());
 
 function showError(message: string) {
   el("error-message").textContent = message;
   el("error").hidden = false;
-  el("status").textContent = "Unable to load map";
+  el("status").textContent = "Unable to load archive";
   controls.setAttribute("aria-busy", "false");
 }
 
-async function start() {
-  const response = await fetch("/api/manifest");
-  if (!response.ok)
-    throw new Error(
-      "No real weather tiles are published yet. Run `vp run weather:refresh` with the local container server running, then reload.",
-    );
-  let manifest: Manifest;
-  try {
-    manifest = parseManifest(await response.json());
-  } catch {
-    throw new Error(
-      "The temperature manifest is invalid or unavailable. Check the dataset and reload.",
-    );
-  }
-  render(manifest, "/api/tiles");
+function localInput(milliseconds: number) {
+  const value = new Date(milliseconds);
+  return new Date(milliseconds - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 }
 
-function render(manifest: Manifest, base: string) {
+function render(manifest: Manifest) {
+  const minimum = Math.max(new Date(2026, 0, 1).getTime(), Date.parse(manifest.frames[0]!.time));
+  const maximum = Date.parse(manifest.latestTime);
+  if (maximum < minimum)
+    throw new Error(
+      "The initial backfill has not yet reached January 1 in your timezone. Please return when more hours have been processed.",
+    );
   const map = new maplibregl.Map({
     container: "map",
     center: [55, 19],
@@ -78,240 +78,212 @@ function render(manifest: Manifest, base: string) {
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-  map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
-
-  const preloadOpacity = 0.000001; // Nonzero so MapLibre fetches the hidden buffer's tiles.
-  const slotFrames = [manifest.frames.length - 1, 0];
-  let current = manifest.frames.length - 1;
-  let active = 0;
-  let playing = !reducedMotion.matches;
-  let pending: number | null = null;
-  let fadeStart: number | null = null;
-  let lastSwap = 0;
+  map.addControl(
+    new maplibregl.AttributionControl({
+      compact: true,
+      customAttribution:
+        'NOAA GFS from <a href="https://dynamical.org/catalog/noaa-gfs-analysis-virtual/">dynamical.org</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',
+    }),
+    "bottom-right",
+  );
+  const layer = new TemperatureLayer(manifest);
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  });
+  const short = new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  let current = minimum;
+  let playing = false;
   let ready = false;
-  let failed = false;
+  let revision = 0;
   let raf: number | null = null;
-  let timer: number | undefined;
+  let previous = performance.now();
+  let displayedSecond = NaN;
 
-  const format = (index: number, short = false) =>
-    new Intl.DateTimeFormat("en-GB", {
-      ...(short ? {} : { month: "short", day: "numeric" }),
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-      timeZone: "UTC",
-    }).format(new Date(manifest.frames[index]!.time)) + " UTC";
-  const template = (frame: number) =>
-    tileTemplate(base, manifest.dataset, manifest.frames[frame]!.id);
   const setStatus = (message: string, busy = false) => {
     if (el("status").textContent !== message) el("status").textContent = message;
-    controls.setAttribute("aria-busy", String(busy));
-  };
-  const updateTime = (frame = current) => {
-    const time = el<HTMLTimeElement>("time");
-    time.textContent = format(frame);
-    time.dateTime = manifest.frames[frame]!.time;
-    timeline.value = String(frame);
-    timeline.setAttribute("aria-valuetext", format(frame));
+    if (controls.getAttribute("aria-busy") !== String(busy))
+      controls.setAttribute("aria-busy", String(busy));
   };
   const updatePlay = () => {
     play.innerHTML = playing ? pauseIcon : playIcon;
     play.setAttribute("aria-label", playing ? "Pause animation" : "Play animation");
     play.setAttribute("aria-pressed", String(playing));
   };
-  const stage = (frame: number) => {
-    const slot = 1 - active;
-    if (slotFrames[slot] === frame) return;
-    slotFrames[slot] = frame;
-    (map.getSource(`temp-${slot}`) as maplibregl.RasterTileSource).setTiles([template(frame)]);
-  };
-  const cancelFade = () => {
-    fadeStart = null;
-    lastSwap = performance.now();
-    if (!ready) return;
-    map.setPaintProperty(`temp-${active}`, "raster-opacity", 1);
-    map.setPaintProperty(`temp-${1 - active}`, "raster-opacity", preloadOpacity);
-  };
-  const wake = () => {
-    if (raf === null && ready && !failed && !document.hidden) raf = requestAnimationFrame(tick);
-  };
-  const commit = () => {
-    const next = 1 - active;
-    map.setPaintProperty(`temp-${next}`, "raster-opacity", 1);
-    map.setPaintProperty(`temp-${active}`, "raster-opacity", preloadOpacity);
-    active = next;
-    current = slotFrames[active]!;
-    pending = null;
-    fadeStart = null;
-    lastSwap = performance.now();
-    updateTime();
-    stage((current + 1) % manifest.frames.length);
-  };
-  function tick(now: number) {
-    raf = null;
-    if (!ready || failed || document.hidden) return;
-    const next = 1 - active;
-    if (pending !== null) {
-      if (!map.isSourceLoaded(`temp-${next}`)) return;
-      commit();
-    }
-    if (!playing) {
-      setStatus("Paused · choose a snapshot or press play");
-      return;
-    }
-    if (map.isMoving()) {
-      setStatus("Exploring map…");
-      return;
-    }
-    if (!map.isSourceLoaded(`temp-${active}`) || !map.isSourceLoaded(`temp-${1 - active}`)) {
-      setStatus("Buffering next snapshot…", true);
-      return; // Source events wake playback; don't busy-loop while waiting for the network.
-    }
-    if (fadeStart === null) {
-      const hold = (reducedMotion.matches ? 1350 : 350) - (now - lastSwap);
-      if (hold > 0) {
-        setStatus("Playing");
-        clearTimeout(timer);
-        timer = window.setTimeout(wake, hold);
-        return;
-      }
-      fadeStart = now;
-      // The incoming image must be above the outgoing image regardless of buffer slot.
-      map.moveLayer(`temp-${1 - active}`, "reference");
-    }
-    const progress = reducedMotion.matches ? 1 : Math.min((now - fadeStart) / 1000, 1);
-    // Keep the outgoing image opaque underneath: weights sum to 1, so there is no dark pulse.
-    map.setPaintProperty(
-      `temp-${1 - active}`,
-      "raster-opacity",
-      Math.max(preloadOpacity, progress),
+  const updateTime = () => {
+    const second = Math.floor(current / 1000);
+    if (second === displayedSecond) return;
+    displayedSecond = second;
+    const time = el<HTMLTimeElement>("time");
+    time.textContent = formatter.format(current);
+    time.dateTime = new Date(current).toISOString();
+    timeline.value = String(Math.floor(current / 1000));
+    timeline.setAttribute("aria-valuetext", formatter.format(current));
+    if (document.activeElement !== date) date.value = localInput(current);
+    const index = Math.max(
+      0,
+      Math.min(
+        manifest.frames.length - 1,
+        Math.floor((current - Date.parse(manifest.frames[0]!.time)) / 3_600_000),
+      ),
     );
-    setStatus("Playing");
-    if (progress === 1) commit();
-    wake();
-  }
-
-  timeline.max = String(manifest.frames.length - 1);
-  el("source").textContent = `${manifest.source} · latest ${format(manifest.frames.length - 1)}`;
-  el("mode").textContent = " / MODEL ANALYSIS";
-  const sameDay =
-    manifest.frames[0]!.time.slice(0, 10) === manifest.frames.at(-1)!.time.slice(0, 10);
-  el("start").textContent = format(0, sameDay);
-  el("end").textContent = format(manifest.frames.length - 1, sameDay);
-  const spacing =
-    (Date.parse(manifest.frames[1]!.time) - Date.parse(manifest.frames[0]!.time)) / 3_600_000;
-  const regular = manifest.frames.every(
-    (frame, index) =>
-      index === 0 ||
-      Date.parse(frame.time) - Date.parse(manifest.frames[index - 1]!.time) === spacing * 3_600_000,
-  );
-  el("cadence").textContent = regular
-    ? `${spacing}-hour snapshots · visual crossfade`
-    : "Weather snapshots · visual crossfade";
-  el("minimum").textContent = `≤${manifest.colorRange[0]}`;
-  el("maximum").textContent = `≥${manifest.colorRange[1]}`;
-  el("resolution").textContent =
-    `${manifest.nativeResolution}° native · zoom ${manifest.minZoom}–${manifest.maxZoom}`;
-  updateTime();
-  updatePlay();
-
-  play.addEventListener("click", () => {
-    playing = !playing;
-    cancelFade();
-    updatePlay();
-    setStatus(playing ? "Playing" : "Paused · choose a snapshot or press play");
-    wake();
-  });
-  timeline.addEventListener("input", () => {
-    if (!ready || failed) return;
+    const frame = manifest.frames[index]!;
+    const year = new Date(frame.time).getUTCFullYear();
+    const reference =
+      manifest.referenceWindowYears === 1
+        ? String(year - 1)
+        : `${year - manifest.referenceWindowYears}–${year - 1}`;
+    el("reference").textContent =
+      `${reference} reference · ${frame.referenceYears} available ${frame.referenceYears === 1 ? "year" : "years"}${frame.referenceYears < manifest.referenceWindowYears ? " (partial history)" : ""}`;
+  };
+  const fail = (error: unknown) => {
     playing = false;
     updatePlay();
-    cancelFade();
-    const target = Number(timeline.value);
-    pending = target === current ? null : target;
-    if (pending !== null) stage(pending);
-    else stage((current + 1) % manifest.frames.length);
-    updateTime(target);
-    setStatus(
-      pending !== null ? "Loading selected snapshot…" : "Paused · choose a snapshot or press play",
-      pending !== null,
-    );
+    showError(error instanceof Error ? error.message : "Unable to load numeric temperature tiles");
+  };
+  const wake = () => {
+    if (raf === null && ready && playing && !document.hidden) raf = requestAnimationFrame(tick);
+  };
+  async function draw(value: number) {
+    if (!ready) return;
+    const requested = revision;
+    try {
+      if (
+        (await layer.show(value, () => setStatus("Loading hourly snapshots…", true))) &&
+        requested === revision
+      ) {
+        current = value;
+        updateTime();
+        setStatus(
+          playing
+            ? `Playing · ${speed.selectedOptions[0]!.textContent}`
+            : "Paused · choose a time or press play",
+        );
+      }
+    } catch (error) {
+      fail(error);
+    }
+  }
+  async function tick(now: number) {
+    raf = null;
+    if (!playing || document.hidden) return;
+    const elapsed = Math.min(1000, Math.max(0, now - previous));
+    previous = now;
+    if (!map.isMoving()) {
+      const value = Math.min(maximum, current + elapsed * Number(speed.value));
+      await draw(value);
+      previous = performance.now(); // Buffering must not advance the displayed clock.
+      if (current >= maximum) {
+        playing = false;
+        updatePlay();
+        setStatus("Latest available analysis reached");
+      }
+    }
     wake();
+  }
+  const seek = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    revision++;
+    playing = false;
+    updatePlay();
+    current = Math.max(minimum, Math.min(maximum, value));
+    date.value = localInput(current);
+    updateTime();
+    void draw(current);
+  };
+
+  timeline.min = String(Math.ceil(minimum / 1000));
+  timeline.max = String(Math.floor(maximum / 1000));
+  date.min = localInput(minimum);
+  date.max = localInput(maximum);
+  el("start").textContent = short.format(minimum);
+  el("end").textContent = short.format(maximum);
+  el("source").textContent = `${manifest.source} · latest ${formatter.format(maximum)}`;
+  el("comparison").textContent =
+    `Temperature differences against the preceding ${manifest.referenceWindowYears === 1 ? "calendar year" : `${manifest.referenceWindowYears} calendar years`}, at the same UTC day and hour.`;
+  el("minimum").textContent = `≤${manifest.colorRange[0]}`;
+  el("maximum").textContent = `≥+${manifest.colorRange[1]}`;
+  updateTime();
+  play.addEventListener("click", () => {
+    revision++;
+    playing = !playing;
+    if (playing && current >= maximum) current = minimum;
+    previous = performance.now();
+    updatePlay();
+    if (playing) wake();
+    else setStatus("Paused");
   });
+  timeline.addEventListener("input", () => seek(Number(timeline.value) * 1000));
+  date.addEventListener("change", () => seek(new Date(date.value).getTime()));
   document.addEventListener("visibilitychange", () => {
-    cancelFade();
+    previous = performance.now();
     wake();
   });
   reducedMotion.addEventListener("change", () => {
     playing = false;
-    cancelFade();
+    revision++;
     updatePlay();
     setStatus("Paused · motion preference changed");
   });
-  map.on("movestart", cancelFade);
-  map.on("moveend", wake);
-  map.on("sourcedata", wake);
-  map.on("error", () => {
-    failed = true;
-    playing = false;
-    cancelFade();
-    updatePlay();
-    play.disabled = true;
-    timeline.disabled = true;
-    showError(
-      "A map resource could not be loaded. The last snapshot is held; check your connection and reload.",
-    );
+  map.on("moveend", () => {
+    revision++;
+    void draw(current);
   });
+  map.on("error", (event) => fail(event.error));
   map.on("load", () => {
-    for (const slot of [0, 1]) {
-      map.addSource(`temp-${slot}`, {
-        type: "raster",
-        tiles: [template(slotFrames[slot]!)],
-        tileSize: manifest.tileSize,
-        minzoom: manifest.minZoom,
-        maxzoom: manifest.maxZoom,
-        attribution:
-          'NOAA GFS from <a href="https://dynamical.org/catalog/noaa-gfs-analysis-virtual/">dynamical.org</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',
-      });
-      map.addLayer({
-        id: `temp-${slot}`,
-        type: "raster",
-        source: `temp-${slot}`,
-        paint: {
-          "raster-opacity": slot === 0 ? 1 : preloadOpacity,
-          "raster-opacity-transition": { duration: 0 },
-          "raster-fade-duration": 0,
-        },
-      });
-    }
+    map.addLayer(layer);
     map.addSource("reference", {
       type: "geojson",
       data: "/countries.geojson",
       attribution: '<a href="https://www.naturalearthdata.com/">Natural Earth</a> · public domain',
     });
     map.addLayer({
+      id: "reference-halo",
+      type: "line",
+      source: "reference",
+      paint: {
+        "line-color": "#fff9eb",
+        "line-opacity": 0.55,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 2, 3, 2.8, 7, 4],
+      },
+    });
+    map.addLayer({
       id: "reference",
       type: "line",
       source: "reference",
       paint: {
-        "line-color": "#f2f2e5",
-        "line-opacity": 0.5,
-        "line-width": 0.7,
+        "line-color": "#182833",
+        "line-opacity": 0.95,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.9, 3, 1.3, 7, 2],
       },
     });
     ready = true;
-    play.disabled = failed;
-    timeline.disabled = failed;
-    lastSwap = performance.now();
-    setStatus(
-      playing ? "Loading temperature tiles…" : "Paused · choose a snapshot or press play",
-      playing,
-    );
-    wake();
+    play.disabled = false;
+    timeline.disabled = false;
+    date.disabled = false;
+    void draw(current);
   });
 }
 
-start().catch((cause: unknown) => {
-  el("source").textContent = "Dataset unavailable";
-  showError(cause instanceof Error ? cause.message : "Unable to load temperature data");
+async function start() {
+  const response = await fetch("/api/manifest", { cache: "no-cache" });
+  if (!response.ok)
+    throw new Error(
+      "No hourly anomaly archive has been published yet. The first refresh archives source history before generating tiles; reload after the backfill has progressed.",
+    );
+  render(parseManifest(await response.json()));
+}
+start().catch((error: unknown) => {
+  console.error(error);
+  el("source").textContent = "Archive unavailable";
+  showError(error instanceof Error ? error.message : "Unable to load temperature archive");
 });

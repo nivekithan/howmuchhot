@@ -24,7 +24,7 @@ app.get(
     keyGenerator: (c) => new URL("/api/manifest", c.req.url).href,
   }),
   async (c) => {
-    const object = await c.env.TILES.get("manifest.json");
+    const object = await c.env.TILES.get("archive/manifest.json");
     if (!object)
       return c.json(
         {

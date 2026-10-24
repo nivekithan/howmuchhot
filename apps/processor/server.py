@@ -29,7 +29,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 4096:
                 raise ValueError("Expected a small JSON request")
             body = json.loads(self.rfile.read(size))
-            self.respond(refresh(body.get("dataset")))
+            self.respond(refresh(body.get("cutoff"), body.get("window")))
         except (ValueError, TypeError) as error:
             traceback.print_exc()
             self.respond({"error": str(error)}, 400)
