@@ -5,6 +5,7 @@ packages:
 
 catalogMode: prefer
 allowBuilds:
+  core-js: false
   esbuild: true
   workerd: true
 
