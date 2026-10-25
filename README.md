@@ -22,13 +22,13 @@ The temperatures come from NOAA's GFS weather model, through
 
 ## How the project is set up
 
-| Folder            | What it does                                                                 |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `apps/web`        | The website: the map and the time controls.                                  |
-| `apps/worker`     | A Cloudflare Worker. It serves the site and map tiles and starts data updates. |
-| `apps/processor`  | Python code. It downloads the weather data and turns it into map tiles.      |
-| `packages/tiles`  | Shared code for reading and writing map tiles.                               |
-| `packages/utils`  | Small shared helpers.                                                        |
+| Folder           | What it does                                                                   |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `apps/web`       | The website: the map and the time controls.                                    |
+| `apps/worker`    | A Cloudflare Worker. It serves the site and map tiles and starts data updates. |
+| `apps/processor` | Python code. It downloads the weather data and turns it into map tiles.        |
+| `packages/tiles` | Shared code for reading and writing map tiles.                                 |
+| `packages/utils` | Small shared helpers.                                                          |
 
 ## Run it on your computer
 
