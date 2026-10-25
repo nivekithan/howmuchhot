@@ -140,6 +140,12 @@ header h1 {
   border-radius: 4px;
   color: var(--muted);
 }
+.header-toggle {
+  display: none;
+}
+.credit-short {
+  display: none;
+}
 .credit .github svg {
   width: 13px;
   height: 13px;
@@ -686,48 +692,182 @@ span.flatpickr-weekday {
     margin: -4px -6px;
   }
 }
+/* Phones: pinch replaces the zoom buttons, so the header spans the width and the
+   attribution button moves up beside it, freeing the strip under the controls. */
 @media (max-width: 600px) {
   header {
-    top: max(12px, env(safe-area-inset-top));
-    left: 12px;
-    padding: 11px 14px 12px;
-    width: calc(100% - 80px);
+    top: max(10px, env(safe-area-inset-top));
+    left: 10px;
+    width: min(380px, calc(100% - 56px));
+    padding: 8px 12px 7px;
+    border-radius: 14px;
   }
   .brand {
-    font-size: 21px;
+    font-size: 18px;
   }
   .brand i {
-    font-size: 19px;
+    font-size: 16px;
   }
   header h1 {
-    font-size: 12px;
+    margin-top: 2px;
+    font-size: 11.5px;
+    line-height: 1.3;
+  }
+  .header-toggle {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .header-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: rotate 0.2s;
+  }
+  .header-toggle[aria-expanded="true"] svg {
+    rotate: 180deg;
+  }
+  header:not(.is-expanded) h1,
+  header:not(.is-expanded) .credit {
+    display: none;
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    margin-top: 6px;
+  }
+  .legend-labels {
+    display: contents;
+  }
+  .legend-labels span:last-child {
+    grid-column: 3;
+  }
+  .gradient {
+    grid-row: 1;
+    grid-column: 2;
+    height: 6px;
+  }
+  .legend-ticks {
+    display: none;
+  }
+  .credit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 6px;
+    margin-top: 6px;
+    padding-top: 5px;
+    font-size: 10px;
+  }
+  .credit p + p {
+    margin-top: 0;
+  }
+  .credit p + p::before {
+    content: "·";
+    margin-right: 2px;
+  }
+  .credit .github {
+    padding: 0 2px;
+  }
+  .maplibregl-ctrl-top-right {
+    display: none;
+  }
+  .maplibregl-ctrl-bottom-right {
+    top: max(10px, env(safe-area-inset-top));
+    right: 10px;
+    bottom: auto;
   }
   .bottom-panel {
     width: calc(100% - 20px);
-    bottom: calc(40px + env(safe-area-inset-bottom));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+  /* Play, date and speed share the top row; the timeline gets the full width below. */
+  .controls {
+    grid-template-areas:
+      "playback date speed"
+      "scrub scrub scrub";
+    row-gap: 0;
+    column-gap: 8px;
+    padding: 7px 10px 2px 8px;
+    border-radius: 14px;
+  }
+  .date-button {
+    margin: 0;
+    padding: 2px 4px;
   }
   .date-icon {
     display: none;
   }
+  .date-text {
+    gap: 0;
+  }
+  .date-text {
+    min-width: 0;
+  }
   .date-text strong {
-    font-size: 15px;
+    font-size: 14px;
   }
   #clock {
-    font-size: 12px;
+    font-size: 11.5px;
   }
   .speed button {
-    min-width: 40px;
+    min-width: 38px;
+    height: 26px;
     padding: 0 7px;
     font-size: 11px;
   }
-  .maplibregl-ctrl-top-right {
-    top: max(12px, env(safe-area-inset-top));
-    right: 12px;
-  }
-}
-@media (max-width: 360px) {
   .step {
     display: none !important;
+  }
+  #play {
+    width: 36px;
+    height: 36px;
+  }
+  #play svg {
+    width: 16px;
+    height: 16px;
+  }
+  .scrubber {
+    padding: 0 0 14px;
+  }
+  .ticks {
+    inset-block-start: 13px;
+  }
+}
+@media (max-width: 380px) {
+  .credit-long {
+    display: none;
+  }
+  .credit-short {
+    display: inline;
+  }
+}
+@media (max-width: 340px) {
+  .credit p + p::before {
+    display: none;
+  }
+  .speed button {
+    min-width: 32px;
+    padding: 0 4px;
+  }
+  .date-text strong {
+    font-size: 13px;
   }
 }
 @media (max-height: 520px) {
