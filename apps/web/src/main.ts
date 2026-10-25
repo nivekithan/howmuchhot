@@ -6,6 +6,7 @@ import "./style.css";
 import type { Manifest } from "@howmuchhot/tiles";
 import { TemperatureLayer } from "./temperature-layer.ts";
 import { temperatureCss, temperatureGradient } from "./colors.ts";
+import "./posthog.ts";
 
 const icon = (path: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
 const playIcon = icon(

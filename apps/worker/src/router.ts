@@ -5,6 +5,8 @@ import type { RefreshParams } from "./refresh.ts";
 import type { TemperatureProcessor } from "./index.ts";
 
 export interface Env {
+  POSTHOG_KEY: string;
+  POSTHOG_HOST: string;
   TILES: R2Bucket;
   PROCESSOR: DurableObjectNamespace<TemperatureProcessor>;
   WEATHER_REFRESH: Workflow<RefreshParams>;

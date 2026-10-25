@@ -11,7 +11,8 @@
   "dependencies": {
     "@howmuchhot/tiles": "workspace:*",
     "flatpickr": "catalog:",
-    "maplibre-gl": "^5.20.0"
+    "maplibre-gl": "^5.20.0",
+    "posthog-js": "^1.407.2"
   },
   "devDependencies": {
     "typescript": "catalog:",

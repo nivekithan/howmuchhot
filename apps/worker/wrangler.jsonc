@@ -3,6 +3,11 @@
   "name": "howmuchhot",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "howmuchhot.com", "custom_domain": true }],
+  "workers_dev": true,
+  "vars": {
+    "POSTHOG_HOST": "https://us.i.posthog.com",
+  },
   "assets": {
     "directory": "../web/dist",
     "binding": "ASSETS",
